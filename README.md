@@ -11,6 +11,13 @@ irm "https://raw.githubusercontent.com/davidabad98/powershell-profile/main/setup
 
 ```
 
+### Reload profiles in this session (or just open a new window)
+
+```powershell
+. $PROFILE.CurrentUserAllHosts   # dot-source your overrides first
+& $PROFILE                       # then run the host profile
+```
+
 ## 🛠️ Fix the Missing Font
 
 After running the script, you'll have two options for installing a font patched to support icons in PowerShell:
