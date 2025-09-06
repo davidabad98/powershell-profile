@@ -4,7 +4,7 @@
 $repo_root_Override = "https://raw.githubusercontent.com/davidabad98"
 
 # Where the updater stores its last-run timestamp (5.1 lives under WindowsPowerShell)
-$timeFilePath_Override = "$HOME\Documents\WindowsPowerShell\LastExecutionTime.txt"
+# $timeFilePath_Override = "$HOME\Documents\WindowsPowerShell\LastExecutionTime.txt"
 
 # How often to check (days). -1 = always check
 $updateInterval_Override = 7
