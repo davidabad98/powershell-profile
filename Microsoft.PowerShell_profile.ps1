@@ -642,8 +642,6 @@ if (-not (Get-Command bat -ErrorAction SilentlyContinue)) {
     } else {
         Write-Warning "winget not found. Please install bat manually: https://github.com/sharkdp/bat"
     }
-} else {
-    Write-Host "bat already installed."
 }
 
 
