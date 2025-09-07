@@ -708,3 +708,38 @@ if (Test-Path "$PSScriptRoot\CTTcustom.ps1") {
 }
 
 Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSStyle.Reset)"
+
+# --- fzf aliases and functions ---
+
+# Find file and open with default Editor
+Set-Alias vf $EDITOR
+function vf {
+    code (fzf)
+}
+
+# cd into a selected directory
+function cdf {
+    param([string]$startDir = '.')
+    \$dir = Get-ChildItem -Directory -Recurse -Force -ErrorAction SilentlyContinue -Path \$startDir | 
+           Select-Object -ExpandProperty FullName | fzf -m
+    if (\$dir) { Set-Location \$dir }
+}
+
+# Preview files with bat while picking
+Set-Alias fp fzf
+function fp {
+    fzf --preview "bat --style=numbers --color=always {} | head -200"
+}
+
+# Use history with fzf
+function fh {
+    Get-History | ForEach-Object { "\$($_.Id) `t$($_.CommandLine)" } | fzf
+}
+
+# Kill a process interactively
+function fkill {
+    Get-Process | ForEach-Object { "\$($_.Id) `t$($_.ProcessName)" } | fzf -m | ForEach-Object { 
+        \$pid = ($_ -split '\s+')[0]
+        Stop-Process -Id \$pid -Force
+    }
+}
