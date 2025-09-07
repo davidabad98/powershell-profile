@@ -711,9 +711,12 @@ Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSSty
 
 # --- fzf aliases and functions ---
 
-# Find file and open with your default editor
+# Open file selected via fzf in default editor with preview
 function vf {
-    & $EDITOR (fzf)
+    $file = fzf --preview "bat --style=numbers --color=always {} | head -200"
+    if ($file) {
+        & $EDITOR $file
+    }
 }
 
 # cd into a selected directory
