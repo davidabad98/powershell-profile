@@ -634,6 +634,19 @@ if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
     winget install --id=junegunn.fzf -e --source winget
 }
 
+# Install bat if missing (optional, for preview)
+if (-not (Get-Command bat -ErrorAction SilentlyContinue)) {
+    Write-Host "bat not found, installing..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id=Sharkdp.Bat -e --source winget
+    } else {
+        Write-Warning "winget not found. Please install bat manually: https://github.com/sharkdp/bat"
+    }
+} else {
+    Write-Host "bat already installed."
+}
+
+
 # Help Function
 function Show-Help {
     $helpText = @"
@@ -713,7 +726,13 @@ Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSSty
 
 # Open file selected via fzf in default editor with preview
 function vf {
-    $file = fzf --preview "bat --style=numbers --color=always {} | head -200"
+    $previewCmd = if (Test-CommandExists bat) {
+        'bat --style=numbers --color=always {} | head -200'
+    } else {
+        'Get-Content {} -TotalCount 200'
+    }
+
+    $file = fzf --hidden --exclude '.git' --exclude 'node_modules' --preview $previewCmd
     if ($file) {
         & $EDITOR $file
     }
@@ -726,6 +745,9 @@ function cdf {
            Select-Object -ExpandProperty FullName | fzf -m
     if (\$dir) { Set-Location \$dir }
 }
+
+# Search files by name (ignores .git and node_modules by default)
+alias ff='fzf --hidden --exclude .git --exclude node_modules'
 
 # Preview files with bat while picking
 Set-Alias fp fzf
