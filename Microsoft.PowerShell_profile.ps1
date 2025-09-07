@@ -627,6 +627,13 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
     }
 }
 
+# Check if fzf is installed
+if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
+    Write-Host "fzf not found, installing..."
+    # Install via winget (requires Windows 10/11 with winget)
+    winget install --id=junegunn.fzf -e --source winget
+}
+
 # Help Function
 function Show-Help {
     $helpText = @"
