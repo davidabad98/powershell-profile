@@ -711,10 +711,9 @@ Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSSty
 
 # --- fzf aliases and functions ---
 
-# Find file and open with default Editor
-Set-Alias vf $EDITOR
+# Find file and open with your default editor
 function vf {
-    code (fzf)
+    & $EDITOR (fzf)
 }
 
 # cd into a selected directory
