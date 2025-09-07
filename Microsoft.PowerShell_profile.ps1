@@ -747,7 +747,14 @@ function cdf {
 }
 
 # Search files by name (ignores .git and node_modules by default)
-alias ff='fzf --hidden --exclude .git --exclude node_modules'
+function ff {
+    param(
+        [string]$Path = '.'
+    )
+
+    # Use fzf to search files by name, ignoring .git and node_modules
+    fzf --hidden --exclude .git --exclude node_modules --preview "if (Get-Command bat -ErrorAction SilentlyContinue) { bat --style=numbers --color=always {} | head -200 }"
+}
 
 # Preview files with bat while picking
 Set-Alias fp fzf
