@@ -722,53 +722,67 @@ Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSSty
 
 # --- fzf aliases and functions ---
 
-# Open file selected via fzf in default editor with preview
-function vf {
+# Fast file search with fzf
+function ff {
+    param([string]$startDir = '.')
+    
+    # Use Get-ChildItem only once, then filter out unwanted folders/files
+    $files = Get-ChildItem -Path $startDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\.git\\' -and $_.FullName -notmatch '\\node_modules\\' }
+
+    if (-not $files) { return }
+
     $previewCmd = if (Test-CommandExists bat) {
         'bat --style=numbers --color=always {} | head -200'
     } else {
         'Get-Content {} -TotalCount 200'
     }
 
-    $file = fzf --hidden --exclude '.git' --exclude 'node_modules' --preview $previewCmd
-    if ($file) {
-        & $EDITOR $file
-    }
+    $selected = $files | Select-Object -ExpandProperty FullName | fzf --preview $previewCmd
+    if ($selected) { Write-Output $selected }
 }
+
+# Fast open file in editor with preview
+function vf {
+    param([string]$startDir = '.')
+
+    $file = ff $startDir  # Use the fast search from ff
+    if ($file) { & $EDITOR $file }
+}
+
 
 # cd into a selected directory
 function cdf {
     param([string]$startDir = '.')
-    \$dir = Get-ChildItem -Directory -Recurse -Force -ErrorAction SilentlyContinue -Path \$startDir | 
-           Select-Object -ExpandProperty FullName | fzf -m
-    if (\$dir) { Set-Location \$dir }
-}
+    
+    $dir = Get-ChildItem -Path $startDir -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\.git\\' -and $_.FullName -notmatch '\\node_modules\\' } |
+        Select-Object -ExpandProperty FullName |
+        fzf -m
 
-# Search files by name (ignores .git and node_modules by default)
-function ff {
-    param(
-        [string]$Path = '.'
-    )
-
-    # Use fzf to search files by name, ignoring .git and node_modules
-    fzf --hidden --exclude .git --exclude node_modules --preview "if (Get-Command bat -ErrorAction SilentlyContinue) { bat --style=numbers --color=always {} | head -200 }"
+    if ($dir) { Set-Location $dir }
 }
 
 # Preview files with bat while picking
-Set-Alias fp fzf
 function fp {
-    fzf --preview "bat --style=numbers --color=always {} | head -200"
+    param([string]$startDir = '.')
+    
+    Get-ChildItem -Path $startDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty FullName |
+        fzf --preview "if (Get-Command bat -ErrorAction SilentlyContinue) { bat --style=numbers --color=always {} | head -200 } else { Get-Content {} -TotalCount 200 }"
 }
 
 # Use history with fzf
 function fh {
-    Get-History | ForEach-Object { "\$($_.Id) `t$($_.CommandLine)" } | fzf
+    Get-History | ForEach-Object { "$($_.Id)`t$($_.CommandLine)" } | fzf
 }
 
 # Kill a process interactively
 function fkill {
-    Get-Process | ForEach-Object { "\$($_.Id) `t$($_.ProcessName)" } | fzf -m | ForEach-Object { 
-        \$pid = ($_ -split '\s+')[0]
-        Stop-Process -Id \$pid -Force
-    }
+    Get-Process | ForEach-Object { "$($_.Id)`t$($_.ProcessName)" } |
+        fzf -m | ForEach-Object {
+            $pid = ($_ -split '\s+')[0]
+            Stop-Process -Id $pid -Force
+        }
 }
+
