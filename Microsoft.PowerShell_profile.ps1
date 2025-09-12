@@ -627,6 +627,24 @@ if (Get-Command zoxide -ErrorAction SilentlyContinue) {
     }
 }
 
+# Check if fzf is installed
+if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
+    Write-Host "fzf not found, installing..."
+    # Install via winget (requires Windows 10/11 with winget)
+    winget install --id=junegunn.fzf -e --source winget
+}
+
+# Install bat if missing (optional, for preview)
+if (-not (Get-Command bat -ErrorAction SilentlyContinue)) {
+    Write-Host "bat not found, installing..."
+    if (Get-Command winget -ErrorAction SilentlyContinue) {
+        winget install --id=Sharkdp.Bat -e --source winget
+    } else {
+        Write-Warning "winget not found. Please install bat manually: https://github.com/sharkdp/bat"
+    }
+}
+
+
 # Help Function
 function Show-Help {
     $helpText = @"
@@ -701,3 +719,70 @@ if (Test-Path "$PSScriptRoot\CTTcustom.ps1") {
 }
 
 Write-Host "$($PSStyle.Foreground.Yellow)Use 'Show-Help' to display help$($PSStyle.Reset)"
+
+# --- fzf aliases and functions ---
+
+# Fast file search with fzf
+function ff {
+    param([string]$startDir = '.')
+    
+    # Use Get-ChildItem only once, then filter out unwanted folders/files
+    $files = Get-ChildItem -Path $startDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\.git\\' -and $_.FullName -notmatch '\\node_modules\\' }
+
+    if (-not $files) { return }
+
+    $previewCmd = if (Test-CommandExists bat) {
+        'bat --style=numbers --color=always {} | head -200'
+    } else {
+        'Get-Content {} -TotalCount 200'
+    }
+
+    $selected = $files | Select-Object -ExpandProperty FullName | fzf --preview $previewCmd
+    if ($selected) { Write-Output $selected }
+}
+
+# Fast open file in editor with preview
+function vf {
+    param([string]$startDir = '.')
+
+    $file = ff $startDir  # Use the fast search from ff
+    if ($file) { & $EDITOR $file }
+}
+
+
+# cd into a selected directory
+function cdf {
+    param([string]$startDir = '.')
+    
+    $dir = Get-ChildItem -Path $startDir -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\.git\\' -and $_.FullName -notmatch '\\node_modules\\' } |
+        Select-Object -ExpandProperty FullName |
+        fzf -m
+
+    if ($dir) { Set-Location $dir }
+}
+
+# Preview files with bat while picking
+function fp {
+    param([string]$startDir = '.')
+    
+    Get-ChildItem -Path $startDir -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty FullName |
+        fzf --preview "if (Get-Command bat -ErrorAction SilentlyContinue) { bat --style=numbers --color=always {} | head -200 } else { Get-Content {} -TotalCount 200 }"
+}
+
+# Use history with fzf
+function fh {
+    Get-History | ForEach-Object { "$($_.Id)`t$($_.CommandLine)" } | fzf
+}
+
+# Kill a process interactively
+function fkill {
+    Get-Process | ForEach-Object { "$($_.Id)`t$($_.ProcessName)" } |
+        fzf -m | ForEach-Object {
+            $pid = ($_ -split '\s+')[0]
+            Stop-Process -Id $pid -Force
+        }
+}
+
