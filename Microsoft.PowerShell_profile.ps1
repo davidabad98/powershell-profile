@@ -786,3 +786,21 @@ function fkill {
         }
 }
 
+# Remove any existing alias for cd
+if (Test-Path Alias:cd) {
+    Remove-Item Alias:cd
+}
+
+# Define custom cd
+function cd {
+    param([string]$Path)
+
+    if ($Path) {
+        Set-Location $Path
+    }
+    else {
+        Set-Location ~
+    }
+
+    Get-ChildItem
+}
