@@ -12,23 +12,33 @@ $updateInterval_Override = 7
 # Preferred editor for Edit-Profile, etc.
 $EDITOR_Override = "code"
 
-# Make oh-my-posh init not depend on a remote theme fetch each start
-# --- Theme init (safer) ---
+# oh-my-posh theme: use a local copy to avoid fetching from GitHub every session.
+# The theme is auto-downloaded once to ~/.config/oh-my-posh/ and reused from there.
 function Get-Theme_Override {
-    if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
-        # Use a local theme file instead of pulling from the internet every session
-        $localTheme = "$HOME\AppData\Local\Programs\oh-my-posh\themes\cobalt2.override.omp.json"
-        if (Test-Path $localTheme) {
-            oh-my-posh init pwsh --config $localTheme | Invoke-Expression
-        }
-        else {
-            # Fallback to a override theme from Github
-            oh-my-posh init pwsh --config https://raw.githubusercontent.com/davidabad98/powershell-profile/refs/heads/main/oh-my-posh/themes/cobalt2.override.omp.json | Invoke-Expression
-        }
-    }
-    else {
+    if (-not (Get-Command oh-my-posh -ErrorAction SilentlyContinue)) {
         Write-Host "oh-my-posh not installed. Skipping fancy prompt." -ForegroundColor DarkYellow
+        return
     }
+
+    $themeDir   = "$HOME\.config\oh-my-posh"
+    $localTheme = "$themeDir\cobalt2.override.omp.json"
+    $remoteTheme = "https://raw.githubusercontent.com/davidabad98/powershell-profile/refs/heads/main/oh-my-posh/themes/cobalt2.override.omp.json"
+
+    # Download once if the local copy is missing
+    if (-not (Test-Path $localTheme)) {
+        if (-not (Test-Path $themeDir)) {
+            New-Item -ItemType Directory -Path $themeDir -Force | Out-Null
+        }
+        try {
+            Invoke-RestMethod -Uri $remoteTheme -OutFile $localTheme -ErrorAction Stop
+        } catch {
+            Write-Host "Could not download oh-my-posh theme; using remote URL as fallback." -ForegroundColor DarkYellow
+            oh-my-posh init pwsh --config $remoteTheme | Invoke-Expression
+            return
+        }
+    }
+
+    oh-my-posh init pwsh --config $localTheme | Invoke-Expression
 }
 
 # (Optional) disable auto profile/PowerShell updates and just notify

@@ -108,15 +108,24 @@ if ([bool]([System.Security.Principal.WindowsIdentity]::GetCurrent()).IsSystem) 
     [System.Environment]::SetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', 'true', [System.EnvironmentVariableTarget]::Machine)
 }
 
-# Initial GitHub.com connectivity check with 1 second timeout
-$global:canConnectToGitHub = Test-Connection github.com -Count 1 -Quiet -TimeoutSeconds 1
+# GitHub connectivity check — run in background so it doesn't block startup.
+# Defaults to $true (optimistic); background job updates it within ~1s.
+$global:canConnectToGitHub = $true
+$null = Start-ThreadJob -ScriptBlock {
+    $result = Test-Connection github.com -Count 1 -Quiet -TimeoutSeconds 1 -ErrorAction SilentlyContinue
+    $global:canConnectToGitHub = [bool]$result
+} -ErrorAction SilentlyContinue
 
 # Import Modules and External Profiles
 # Ensure Terminal-Icons module is installed before importing
 if (-not (Get-Module -ListAvailable -Name Terminal-Icons)) {
     Install-Module -Name Terminal-Icons -Scope CurrentUser -Force -SkipPublisherCheck
 }
-Import-Module -Name Terminal-Icons
+# Lazy-load Terminal-Icons: defers the ~870ms import until after the prompt is
+# rendered. Icons will appear from the first command you run, not before it.
+$null = Register-EngineEvent -SourceIdentifier PowerShell.OnIdle -MaxTriggerCount 1 -Action {
+    Import-Module -Name Terminal-Icons -ErrorAction SilentlyContinue
+}
 $ChocolateyProfile = "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
 if (Test-Path($ChocolateyProfile)) {
     Import-Module "$ChocolateyProfile"
@@ -638,7 +647,7 @@ if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
 if (-not (Get-Command bat -ErrorAction SilentlyContinue)) {
     Write-Host "bat not found, installing..."
     if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id=Sharkdp.Bat -e --source winget
+        winget install --id sharkdp.bat --exact --source winget --accept-package-agreements --accept-source-agreements
     } else {
         Write-Warning "winget not found. Please install bat manually: https://github.com/sharkdp/bat"
     }
