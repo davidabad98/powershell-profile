@@ -284,6 +284,12 @@ function Edit-Profile {
 }
 Set-Alias -Name ep -Value Edit-Profile
 
+# Neovim typo aliases - common misspellings/variants all route to nvim
+function vi   { if (Test-CommandExists nvim) { nvim @args } else { Write-Host "nvim is not installed." -ForegroundColor Red } }
+function vim  { if (Test-CommandExists nvim) { nvim @args } else { Write-Host "nvim is not installed." -ForegroundColor Red } }
+function vnim { if (Test-CommandExists nvim) { nvim @args } else { Write-Host "nvim is not installed." -ForegroundColor Red } }
+function nivm { if (Test-CommandExists nvim) { nvim @args } else { Write-Host "nvim is not installed." -ForegroundColor Red } }
+
 function touch($file) { "" | Out-File $file -Encoding ASCII }
 function ff($name) {
     Get-ChildItem -recurse -filter "*${name}*" -ErrorAction SilentlyContinue | ForEach-Object {
@@ -526,6 +532,26 @@ function sysinfo { Get-ComputerInfo }
 function flushdns {
 	Clear-DnsClientCache
 	Write-Host "DNS has been flushed"
+}
+
+# Open Visual Studio by finding the .sln file in the current directory
+function devenv {
+    if (-not (Test-CommandExists devenv)) {
+        Write-Host "devenv is not in PATH. Make sure Visual Studio is installed and devenv.exe is on your PATH." -ForegroundColor Red
+        Write-Host "Typical location: C:\Program Files\Microsoft Visual Studio\<version>\<edition>\Common7\IDE\devenv.exe" -ForegroundColor DarkYellow
+        return
+    }
+    $slnFiles = Get-ChildItem -Filter "*.sln" -ErrorAction SilentlyContinue
+    if ($slnFiles.Count -eq 0) {
+        Write-Host "No .sln file found in the current directory." -ForegroundColor Red
+        return
+    }
+    if ($slnFiles.Count -gt 1) {
+        Write-Host "Multiple .sln files found:" -ForegroundColor Yellow
+        $slnFiles | ForEach-Object { Write-Host "  $($_.Name)" }
+        Write-Host "Opening: $($slnFiles[0].Name)" -ForegroundColor Cyan
+    }
+    & devenv $slnFiles[0].FullName
 }
 
 # Clipboard Utilities
@@ -800,16 +826,24 @@ if (Test-Path Alias:cd) {
     Remove-Item Alias:cd
 }
 
-# Define custom cd
+# Custom cd - navigates then shows directory contents Ubuntu-style (names only, single line)
+# If the directory has more than 20 items, nothing is shown to avoid flooding the terminal.
 function cd {
     param([string]$Path)
 
     if ($Path) {
         Set-Location $Path
-    }
-    else {
+    } else {
         Set-Location ~
     }
 
-    Get-ChildItem
+    $items = Get-ChildItem -ErrorAction SilentlyContinue
+    if ($items.Count -le 20) {
+        $names = $items | ForEach-Object {
+            if ($_.PSIsContainer) { "$($_.Name)/" } else { $_.Name }
+        }
+        if ($names) {
+            Write-Host ($names -join "  ") -ForegroundColor Cyan
+        }
+    }
 }
