@@ -326,8 +326,59 @@ function admin {
     }
 }
 
-# Set UNIX-like aliases for the admin command, so sudo <command> will run the command with elevated rights.
+# Set UNIX-like aliases for the admin command, so su opens a new elevated terminal.
 Set-Alias -Name su -Value admin
+
+# sudo - run commands with elevated rights, mirroring Linux sudo behaviour.
+#   sudo            -> open a new elevated Windows Terminal
+#   sudo devenv     -> open the .sln in the current directory as administrator
+#   sudo devenv x.sln -> open a specific solution as administrator
+#   sudo <cmd> [args] -> run any other command in a new elevated pwsh window
+function sudo {
+    if ($args.Count -eq 0) {
+        Start-Process wt -Verb RunAs
+        return
+    }
+
+    $cmd  = $args[0]
+    $rest = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
+
+    if ($cmd -eq 'devenv') {
+        # Resolve devenv.exe (PATH first, then VS install folder fallback)
+        $devenvExe = Get-Command devenv -ErrorAction SilentlyContinue |
+                         Select-Object -ExpandProperty Source
+        if (-not $devenvExe) {
+            $devenvExe = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' `
+                             -Recurse -Filter 'devenv.exe' -ErrorAction SilentlyContinue |
+                             Select-Object -First 1 -ExpandProperty FullName
+        }
+        if (-not $devenvExe) {
+            Write-Host "devenv.exe not found. Is Visual Studio installed?" -ForegroundColor Red
+            return
+        }
+
+        # Use explicitly supplied .sln, or auto-discover in current directory
+        if ($rest.Count -gt 0) {
+            $slnArg = $rest[0]
+        } else {
+            $slnFiles = Get-ChildItem -Filter '*.sln' -ErrorAction SilentlyContinue
+            if ($slnFiles.Count -eq 0) {
+                Write-Host "No .sln file found in the current directory." -ForegroundColor Red
+                return
+            }
+            if ($slnFiles.Count -gt 1) {
+                Write-Host "Multiple .sln files found - opening: $($slnFiles[0].Name)" -ForegroundColor Yellow
+            }
+            $slnArg = $slnFiles[0].FullName
+        }
+        Start-Process $devenvExe -Verb RunAs -ArgumentList "`"$slnArg`""
+        return
+    }
+
+    # Generic: open a new elevated pwsh window running the command
+    $argList = "$cmd " + ($rest -join ' ')
+    Start-Process wt -Verb RunAs -ArgumentList "pwsh.exe -NoExit -Command $argList"
+}
 
 function uptime {
     try {
