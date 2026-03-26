@@ -534,13 +534,23 @@ function flushdns {
 	Write-Host "DNS has been flushed"
 }
 
-# Open Visual Studio by finding the .sln file in the current directory
+# Open Visual Studio by finding the .sln file in the current directory.
+# Resolves devenv.exe even when Visual Studio is not in PATH (common with VS 2026+).
 function devenv {
-    if (-not (Test-CommandExists devenv)) {
-        Write-Host "devenv is not in PATH. Make sure Visual Studio is installed and devenv.exe is on your PATH." -ForegroundColor Red
-        Write-Host "Typical location: C:\Program Files\Microsoft Visual Studio\<version>\<edition>\Common7\IDE\devenv.exe" -ForegroundColor DarkYellow
+    # 1. Try PATH first
+    $devenvCmd = Get-Command devenv -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+
+    # 2. Fall back: search known VS install roots for devenv.exe
+    if (-not $devenvCmd) {
+        $devenvCmd = Get-ChildItem 'C:\Program Files\Microsoft Visual Studio' -Recurse -Filter 'devenv.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName
+    }
+
+    if (-not $devenvCmd) {
+        Write-Host "devenv.exe not found. Is Visual Studio installed?" -ForegroundColor Red
         return
     }
+
     $slnFiles = Get-ChildItem -Filter "*.sln" -ErrorAction SilentlyContinue
     if ($slnFiles.Count -eq 0) {
         Write-Host "No .sln file found in the current directory." -ForegroundColor Red
@@ -551,7 +561,7 @@ function devenv {
         $slnFiles | ForEach-Object { Write-Host "  $($_.Name)" }
         Write-Host "Opening: $($slnFiles[0].Name)" -ForegroundColor Cyan
     }
-    & devenv $slnFiles[0].FullName
+    & $devenvCmd $slnFiles[0].FullName
 }
 
 # Clipboard Utilities
