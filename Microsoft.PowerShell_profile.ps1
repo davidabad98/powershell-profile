@@ -711,33 +711,51 @@ if (Get-Command -Name "Get-Theme_Override" -ErrorAction SilentlyContinue){
 }
 
 if (Get-Command zoxide -ErrorAction SilentlyContinue) {
-    Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
+    # Cache zoxide init output — spawning zoxide.exe costs ~100ms every session.
+    # Invalidate the cache when the zoxide version changes (i.e. after an upgrade).
+    $zoxideCacheDir  = "$env:LOCALAPPDATA\powershell-profile"
+    $zoxideCache     = "$zoxideCacheDir\zoxide-init.ps1"
+    $zoxideCacheVer  = "$zoxideCacheDir\zoxide-init.ps1.ver"
+
+    $zoxideVer    = (zoxide --version 2>&1)
+    $storedVer    = if (Test-Path $zoxideCacheVer) { (Get-Content $zoxideCacheVer -Raw).Trim() } else { '' }
+
+    if (-not (Test-Path $zoxideCache) -or $zoxideVer -ne $storedVer) {
+        if (-not (Test-Path $zoxideCacheDir)) { New-Item -ItemType Directory -Path $zoxideCacheDir -Force | Out-Null }
+        zoxide init --cmd z powershell | Out-File $zoxideCache -Encoding utf8
+        $zoxideVer | Out-File $zoxideCacheVer -Encoding utf8
+    }
+
+    . $zoxideCache
 } else {
-    Write-Host "zoxide command not found. Attempting to install via winget..."
-    try {
-        winget install -e --id ajeetdsouza.zoxide
-        Write-Host "zoxide installed successfully. Initializing..."
-        Invoke-Expression (& { (zoxide init --cmd z powershell | Out-String) })
-    } catch {
-        Write-Error "Failed to install zoxide. Error: $_"
-    }
+    # zoxide missing — install in the background so startup isn't blocked.
+    # A message is printed after the first prompt via a registered event.
+    $null = Start-ThreadJob -ScriptBlock {
+        try {
+            winget install -e --id ajeetdsouza.zoxide --accept-source-agreements --accept-package-agreements | Out-Null
+            $global:_zoxideInstalled = $true
+        } catch {
+            $global:_zoxideInstalled = $false
+        }
+    } -ErrorAction SilentlyContinue
+    Write-Host "zoxide not found — installing in background. Restart your terminal when done." -ForegroundColor DarkYellow
 }
 
-# Check if fzf is installed
-if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) {
-    Write-Host "fzf not found, installing..."
-    # Install via winget (requires Windows 10/11 with winget)
-    winget install --id=junegunn.fzf -e --source winget
-}
+# Install fzf and bat in the background if either is missing.
+# Both are optional quality-of-life tools; their absence must never block startup.
+$_missingTools = @()
+if (-not (Get-Command fzf -ErrorAction SilentlyContinue)) { $_missingTools += @{ id = 'junegunn.fzf';  name = 'fzf' } }
+if (-not (Get-Command bat -ErrorAction SilentlyContinue)) { $_missingTools += @{ id = 'sharkdp.bat';   name = 'bat' } }
 
-# Install bat if missing (optional, for preview)
-if (-not (Get-Command bat -ErrorAction SilentlyContinue)) {
-    Write-Host "bat not found, installing..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id sharkdp.bat --exact --source winget --accept-package-agreements --accept-source-agreements
-    } else {
-        Write-Warning "winget not found. Please install bat manually: https://github.com/sharkdp/bat"
-    }
+if ($_missingTools.Count -gt 0) {
+    $null = Start-ThreadJob -ScriptBlock {
+        param($tools)
+        foreach ($tool in $tools) {
+            winget install --id $tool.id --exact --source winget --accept-package-agreements --accept-source-agreements | Out-Null
+        }
+    } -ArgumentList (,$_missingTools) -ErrorAction SilentlyContinue
+    $names = ($_missingTools | ForEach-Object { $_.name }) -join ', '
+    Write-Host "$names not found — installing in background. Restart your terminal when done." -ForegroundColor DarkYellow
 }
 
 

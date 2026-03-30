@@ -38,7 +38,22 @@ function Get-Theme_Override {
         }
     }
 
-    oh-my-posh init pwsh --config $localTheme | Invoke-Expression
+    # Cache the oh-my-posh init output so we don't spawn oh-my-posh.exe every
+    # session. The cache is invalidated whenever the theme file changes (via MD5).
+    $ompCacheDir  = "$env:LOCALAPPDATA\powershell-profile"
+    $ompCache     = "$ompCacheDir\omp-init.ps1"
+    $ompCacheHash = "$ompCacheDir\omp-init.ps1.hash"
+
+    $themeHash   = (Get-FileHash $localTheme -Algorithm MD5).Hash
+    $storedHash  = if (Test-Path $ompCacheHash) { (Get-Content $ompCacheHash -Raw).Trim() } else { '' }
+
+    if (-not (Test-Path $ompCache) -or $themeHash -ne $storedHash) {
+        if (-not (Test-Path $ompCacheDir)) { New-Item -ItemType Directory -Path $ompCacheDir -Force | Out-Null }
+        oh-my-posh init pwsh --config $localTheme | Out-File $ompCache -Encoding utf8
+        $themeHash | Out-File $ompCacheHash -Encoding utf8
+    }
+
+    . $ompCache
 }
 
 # (Optional) disable auto profile/PowerShell updates and just notify
@@ -60,8 +75,13 @@ function Clear-Cache_Override {
 #Set-Alias -Name winutil -Value WinUtilDev_Override  # optional: neutralize winutil too
 
 # --- Environment hardening & QoL ---
-# Always opt out of PowerShell telemetry for current user
-[System.Environment]::SetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', 'true', 'User')
+# Opt out of PowerShell telemetry for the current user.
+# Guard: only write to the registry when the value isn't already correct.
+# Writing 'User'-scoped env vars broadcasts WM_SETTINGCHANGE to all windows,
+# which can stall PowerShell startup by 8+ seconds on some machines.
+if ([System.Environment]::GetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', 'User') -ne 'true') {
+    [System.Environment]::SetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', 'true', 'User')
+}
 
 # Example: change prompt symbol, keep admin #[…]
 # function prompt_Override {

@@ -72,3 +72,13 @@ See [TECHNICAL.md](TECHNICAL.md) for the full list of override hooks, how auto-u
 . $PROFILE.CurrentUserAllHosts   # load your overrides
 & $PROFILE                       # load the base profile
 ```
+
+## Further reading
+
+See [TECHNICAL.md](TECHNICAL.md) for:
+
+- The full list of override hooks (variables and functions)
+- How auto-updates work and how to point them at a fork
+- Startup performance details and how the caches work
+- New machine setup walkthrough
+- Troubleshooting (execution policy errors, Windows PowerShell 5.1 compatibility)

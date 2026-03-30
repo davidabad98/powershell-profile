@@ -79,27 +79,54 @@ The profile is optimized for fast startup. Key techniques used:
 | Technique | Savings |
 |---|---|
 | Terminal-Icons loaded via `Register-EngineEvent -SourceIdentifier PowerShell.OnIdle` | ~870ms |
-| oh-my-posh pointed at a local theme file instead of a remote URL | ~230ms |
+| oh-my-posh init output cached to `%LOCALAPPDATA%\powershell-profile\omp-init.ps1` | ~300–970ms |
+| zoxide init output cached to `%LOCALAPPDATA%\powershell-profile\zoxide-init.ps1` | ~100–150ms |
 | GitHub connectivity check runs in a background `Start-ThreadJob` | ~87ms |
+| Telemetry opt-out guarded by a read-before-write check | ~8,200ms (on affected machines) |
+| fzf / bat installs run in a background job when missing | blocking → 0ms |
 
-### oh-my-posh local theme
+### oh-my-posh init cache
 
-`Get-Theme_Override` in `profileoverrides.ps1` / `profile.ps1` handles this:
+`Get-Theme_Override` in `profile.ps1`:
 
 1. Checks for the theme at `~/.config/oh-my-posh/cobalt2.override.omp.json`.
 2. If missing (new machine), downloads it once from the fork.
-3. Every subsequent session loads from the local file — no network call.
+3. Computes the MD5 hash of the theme file and compares it to `%LOCALAPPDATA%\powershell-profile\omp-init.ps1.hash`.
+4. If the hash matches, dot-sources `omp-init.ps1` directly — no `oh-my-posh.exe` spawn.
+5. If the hash differs (theme was updated), regenerates the cache and updates the hash file.
 
-To reset the cached theme (e.g. after updating it in the fork):
+To force a theme cache rebuild:
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\powershell-profile\omp-init.ps1" -ErrorAction SilentlyContinue
+# Restart the terminal.
+```
+
+To reset the cached theme JSON (e.g. after updating it in the fork):
 
 ```powershell
 Remove-Item "$HOME\.config\oh-my-posh\cobalt2.override.omp.json"
-# Restart the terminal — it will re-download automatically.
+# Restart the terminal — it will re-download and rebuild the init cache automatically.
+```
+
+### zoxide init cache
+
+`zoxide init --cmd z powershell` is cached to `%LOCALAPPDATA%\powershell-profile\zoxide-init.ps1`, keyed to the output of `zoxide --version`. The cache is automatically regenerated when zoxide is upgraded.
+
+To force a zoxide cache rebuild:
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\powershell-profile\zoxide-init.ps1" -ErrorAction SilentlyContinue
+# Restart the terminal.
 ```
 
 ### Terminal-Icons lazy load
 
 Terminal-Icons is registered to load on `PowerShell.OnIdle` — after the prompt renders. Icons will appear from your first command, not before it. This is intentional.
+
+### Telemetry opt-out
+
+`profile.ps1` opts out of PowerShell telemetry by setting `POWERSHELL_TELEMETRY_OPTOUT=true` in the User environment. The write is guarded with a read-first check: if the value is already `true`, the registry write (and the expensive `WM_SETTINGCHANGE` broadcast it triggers) is skipped entirely.
 
 ---
 
