@@ -10,7 +10,7 @@ $repo_root_Override = "https://raw.githubusercontent.com/davidabad98"
 $updateInterval_Override = 7
 
 # Preferred editor for Edit-Profile, etc.
-$EDITOR_Override = "code"
+$EDITOR_Override = "nvim"
 
 # oh-my-posh theme: use a local copy to avoid fetching from GitHub every session.
 # The theme is auto-downloaded once to ~/.config/oh-my-posh/ and reused from there.
@@ -81,6 +81,11 @@ function Clear-Cache_Override {
 # which can stall PowerShell startup by 8+ seconds on some machines.
 if ([System.Environment]::GetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', 'User') -ne 'true') {
     [System.Environment]::SetEnvironmentVariable('POWERSHELL_TELEMETRY_OPTOUT', 'true', 'User')
+}
+
+# Persist nvim as the default editor for all tools that respect $EDITOR (e.g. OpenCode, git, etc.)
+if ([System.Environment]::GetEnvironmentVariable('EDITOR', 'User') -ne 'nvim') {
+    [System.Environment]::SetEnvironmentVariable('EDITOR', 'nvim', 'User')
 }
 
 # Example: change prompt symbol, keep admin #[…]
