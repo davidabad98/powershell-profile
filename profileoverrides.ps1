@@ -38,22 +38,13 @@ function Get-Theme_Override {
         }
     }
 
-    # Cache the oh-my-posh init output so we don't spawn oh-my-posh.exe every
-    # session. The cache is invalidated whenever the theme file changes (via MD5).
-    $ompCacheDir  = "$env:LOCALAPPDATA\powershell-profile"
-    $ompCache     = "$ompCacheDir\omp-init.ps1"
-    $ompCacheHash = "$ompCacheDir\omp-init.ps1.hash"
-
-    $themeHash   = (Get-FileHash $localTheme -Algorithm MD5).Hash
-    $storedHash  = if (Test-Path $ompCacheHash) { (Get-Content $ompCacheHash -Raw).Trim() } else { '' }
-
-    if (-not (Test-Path $ompCache) -or $themeHash -ne $storedHash) {
-        if (-not (Test-Path $ompCacheDir)) { New-Item -ItemType Directory -Path $ompCacheDir -Force | Out-Null }
-        oh-my-posh init pwsh --config $localTheme | Out-File $ompCache -Encoding utf8
-        $themeHash | Out-File $ompCacheHash -Encoding utf8
-    }
-
-    . $ompCache
+    # Each shell gets a unique OMP session ID via Invoke-Expression.
+    # This is OMP's intended usage pattern — do NOT cache the init output to a
+    # static file, because that would freeze a single session ID and cause all
+    # shells (including psmux-spawned panes) to share the same OMP session cache,
+    # leading to CONFIG_SOURCE corruption and the default theme being rendered.
+    # OMP already caches its heavy init module internally, so this is fast.
+    oh-my-posh init pwsh --config $localTheme | Invoke-Expression
 }
 
 # (Optional) disable auto profile/PowerShell updates and just notify
